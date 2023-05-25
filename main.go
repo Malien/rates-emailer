@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+    "encoding/json"
+    "io"
 
 	chi "github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -11,13 +13,57 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type CoinGeckoResponse struct {
+    Bitcoin struct {
+        Usd float64 `json:"usd"`
+    } `json:"bitcoin"`
+}
+
 func rate(w http.ResponseWriter, r *http.Request) {
 	oplog := httplog.LogEntry(r.Context())
 	oplog.Info().Msg("Fetching excahnge rates")
+    resp, err := http.Get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+    if err != nil || resp.StatusCode != 200 {
+        ev := oplog.Error()
+        if err != nil {
+            ev = ev.Err(err)
+        }
+        ev.Msg("Failed to fetch exchange rates")
+        rateFetchFail(w)
+        return
+    }
+    defer resp.Body.Close()
+    bytes, err := io.ReadAll(resp.Body)
+    oplog.Trace().Str("body", string(bytes)).Msg("Response body")
+    if err != nil {
+        oplog.Error().Err(err).Msg("Failed to read response body")
+        rateFetchFail(w)
+        return
+    }
+    var cgResp *CoinGeckoResponse
+    err = json.Unmarshal(bytes, &cgResp)
+    if err != nil {
+        oplog.Error().Err(err).Msg("Failed to parse response body")
+        rateFetchFail(w)
+        return
+    }
+    oplog.Info().Msgf("Exchange rates fetched %#v", cgResp)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	// Numbers are valid JSON
-	fmt.Fprintf(w, "%d", 42)
+    body, err := json.Marshal(cgResp.Bitcoin.Usd)
+    if err != nil {
+        oplog.Error().Err(err).Msg("Failed to marshal response body")
+        rateFetchFail(w)
+        return
+    }
+    w.Write(body)
+}
+
+func rateFetchFail(w http.ResponseWriter) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusInternalServerError)
+    fmt.Fprintf(w, "{\"error\": \"Failed to fetch exchange rates\"}")
 }
 
 func subscribe(w http.ResponseWriter, r *http.Request) {
