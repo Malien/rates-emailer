@@ -31,7 +31,9 @@ func rate(w http.ResponseWriter, r *http.Request) {
 	rate, err := fetcher.FetchRate(r.Context())
 	if err != nil {
 		oplog.Error().Err(err).Msg("Failed to fetch exchange rates")
-		rateFetchFail(w)
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusInternalServerError)
+        fmt.Fprintf(w, "{\"error\": \"Failed to fetch exchange rates\"}")
 		return
 	}
 	oplog.Info().Float64("rate", rate).Msg("Exchange rates fetched successfully")
@@ -41,16 +43,12 @@ func rate(w http.ResponseWriter, r *http.Request) {
 	body, err := json.Marshal(rate)
 	if err != nil {
 		oplog.Error().Err(err).Float64("body", rate).Msg("Failed to marshal response body")
-		rateFetchFail(w)
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusInternalServerError)
+        fmt.Fprintf(w, "{\"error\": \"Failed to serialize response body\"}")
 		return
 	}
 	w.Write(body)
-}
-
-func rateFetchFail(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintf(w, "{\"error\": \"Failed to fetch exchange rates\"}")
 }
 
 func subscribe(w http.ResponseWriter, r *http.Request) {
