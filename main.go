@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/mail"
 	"os"
 	"strconv"
 
@@ -71,6 +72,14 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	oplog = oplog.With().Str("email", email).Logger()
+    _, err := mail.ParseAddress(email)
+    if err != nil {
+        oplog.Error().Err(err).Msg("Invalid email address")
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusBadRequest)
+        fmt.Fprintf(w, "{\"error\": \"Invalid email address\"}")
+        return
+    }
 
 	oplog.Info().Msg("Saving subscriber to the file")
 
@@ -94,12 +103,6 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-}
-
-func must(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
 
 func sendEmails(w http.ResponseWriter, r *http.Request) {

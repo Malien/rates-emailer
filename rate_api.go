@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"github.com/go-chi/httplog"
-    "net/http"
-    "fmt"
+	"io"
+	"net/http"
 )
 
 type RateFetcher interface {
@@ -26,7 +26,17 @@ type GeckoAPI struct{}
 func (g GeckoAPI) FetchRate(ctx context.Context) (float64, error) {
 	oplog := httplog.LogEntry(ctx)
 
-	resp, err := http.Get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		"https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+		nil,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
