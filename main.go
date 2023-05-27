@@ -13,6 +13,7 @@ import (
 	chi "github.com/go-chi/chi/v5"
 	"github.com/go-chi/httplog"
 	"github.com/rs/zerolog"
+	"github.com/spf13/viper"
 )
 
 type CoinGeckoResponse struct {
@@ -190,15 +191,42 @@ func main() {
 		// JSON: true,
 	})
 
-	configFile, err := os.ReadFile("config.json")
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to read application configuration from config.json")
-	}
+    mode := os.Getenv("APP_MODE")
+    if mode == "" {
+        mode = "dev"
+    }
+
+    // Load config in order:
+    // - config.*
+    // - config.(dev|prod).*
+    // - config.local.*
+    // - Environment variables
+    // * refers to (json|toml|yaml|yml)
+
+    viper.SetConfigName("config")
+    viper.AddConfigPath("./conf")
+    viper.ReadInConfig()
+
+    viper.SetConfigName("config." + mode)
+    viper.MergeInConfig()
+
+    viper.SetConfigName("config.local")
+    viper.MergeInConfig()
+
+    viper.AutomaticEnv()
+    viper.BindEnv("email.username", "EMAIL_USERNAME")
+    viper.BindEnv("email.password", "EMAIL_PASSWORD")
+    viper.BindEnv("email.from", "EMAIL_FROM")
+    viper.BindEnv("email.smtp.host", "EMAIL_SMTP_HOST")
+    viper.MergeInConfig()
+
 	var config *AppConfig
-	err = json.Unmarshal(configFile, &config)
+    err := viper.Unmarshal(&config)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to parse config file")
 	}
+
+    logger.Info().Msgf("Read config file: %+v", config)
 
 	logger.Info().Msg("Reading emails from " + config.EmailsFilePath)
 	emails, err := NewEmailDB(config.EmailsFilePath)

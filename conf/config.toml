@@ -1,0 +1,16 @@
+emailsFilePath = "emails.txt"
+
+# There are also email config missing, since they require credentials
+# I'm not committing those to the repo
+
+# The structure is as follows:
+# [email]
+# username = <EMAIL_USERNAME>
+# password = <EMAIL_PASSWORD>
+# from = <EMAIL_USERNAME>
+# [email.smtp]
+# host = <EMAIL_SMTP_HOST>
+# port = <EMAIL_SMPT_PORT>
+# ssl = true/false
+#
+# Values in <> can be set via respective environment variables

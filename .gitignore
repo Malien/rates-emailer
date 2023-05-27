@@ -2,5 +2,5 @@
 /test_data
 /.nvimrc.lua
 /.luarc.json
-/config.local.json
 /.vscode
+*.local.*
