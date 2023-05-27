@@ -20,7 +20,7 @@ func (d DummyFetcher) FetchRate(_ctx context.Context) (float64, error) {
 	return 42, nil
 }
 
-func must(t *testing.T, err error) {
+func tmust(t *testing.T, err error) {
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,13 +61,13 @@ func (s *testState) restart() testState {
 func prepareWithExistingId(t *testing.T, id uuid.UUID) testState {
 	logger := zerolog.Nop()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	must(t, err)
+	tmust(t, err)
 
 	os.Mkdir("test_data", 0755)
 	emails, err := NewEmailDB("test_data/" + id.String() + ".txt")
-	must(t, err)
+	tmust(t, err)
 
-	router := Bootstrap(AppConfig{
+	router := Bootstrap(BootstrapOpts{
 		Emails:  emails,
 		Logger:  logger,
 		Fetcher: DummyFetcher{},
@@ -90,16 +90,16 @@ func TestFetchRate(t *testing.T) {
 	defer state.Close()
 
 	resp, err := http.Get(state.APIURL("/rate"))
-	must(t, err)
+	tmust(t, err)
 
 	if resp.StatusCode != 200 {
 		t.Fatalf("Expected 200, got %d", resp.StatusCode)
 	}
 	var res *float64
 	body, err := io.ReadAll(resp.Body)
-	must(t, err)
+	tmust(t, err)
 	err = json.Unmarshal(body, &res)
-	must(t, err)
+	tmust(t, err)
 
 	if *res != 42 {
 		t.Fatalf("Expected 42, got %f", *res)
@@ -112,7 +112,7 @@ func TestSubscribe(t *testing.T) {
 
 	buffer := bytes.NewBufferString("email=foo@mail.com")
 	resp, err := http.Post(state.APIURL("/subscribe"), "application/x-www-form-urlencoded", buffer)
-	must(t, err)
+	tmust(t, err)
 
 	if resp.StatusCode != 200 {
 		t.Fatalf("Expected 201, got %d", resp.StatusCode)
@@ -123,7 +123,7 @@ func TestSubscribe(t *testing.T) {
 
     // Saving the same email twice should result in a 400
 	resp, err = http.Post(state.APIURL("/subscribe"), "application/x-www-form-urlencoded", buffer)
-	must(t, err)
+	tmust(t, err)
 
 	if resp.StatusCode != 400 {
 		t.Fatalf("Expected 400, got %d", resp.StatusCode)
@@ -136,7 +136,7 @@ func TestEmailIsPersisted(t *testing.T) {
 
 	buffer := bytes.NewBufferString("email=foo@mail.com")
 	resp, err := http.Post(state1.APIURL("/subscribe"), "application/x-www-form-urlencoded", buffer)
-	must(t, err)
+	tmust(t, err)
 
 	if resp.StatusCode != 200 {
 		t.Fatalf("Expected 201, got %d", resp.StatusCode)
@@ -152,7 +152,7 @@ func TestEmailIsPersisted(t *testing.T) {
 	buffer.Reset()
 	buffer.WriteString("email=foo@mail.com")
 	resp, err = http.Post(state2.APIURL("/subscribe"), "application/x-www-form-urlencoded", buffer)
-	must(t, err)
+	tmust(t, err)
 
 	if resp.StatusCode != 400 {
 		t.Fatalf("Expected 400, got %d", resp.StatusCode)

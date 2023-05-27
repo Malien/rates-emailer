@@ -17,7 +17,7 @@ type fetcherKey int
 
 var FetcherCtxKey fetcherKey
 
-func Fetcher(ctx context.Context) RateFetcher {
+func FetcherFromContext(ctx context.Context) RateFetcher {
 	return ctx.Value(FetcherCtxKey).(RateFetcher)
 }
 
