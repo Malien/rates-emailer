@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"io/fs"
 	"os"
 )
@@ -45,7 +46,7 @@ func NewEmailDB(path string) (*EmailDB, error) {
 		set[email] = struct{}{}
 	}
 
-	db = &EmailDB{
+    db := &EmailDB{
 		updateChan: updateChan,
 		set:        set,
 		cache:      emails,
@@ -89,3 +90,16 @@ func (db *EmailDB) Append(email string) (exists bool, err error) {
 func (db *EmailDB) Emails() []string {
 	return db.cache
 }
+
+func (db *EmailDB) Close() error {
+    close(db.updateChan)
+    return db.file.Close()
+}
+
+type emailDBCtxKey int
+var EmailDBCtxKey emailDBCtxKey = 0
+
+func EmailsDBFromContext(ctx context.Context) *EmailDB {
+    return ctx.Value(EmailDBCtxKey).(*EmailDB)
+}
+
