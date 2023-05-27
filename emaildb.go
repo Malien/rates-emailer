@@ -24,7 +24,7 @@ type EmailDB struct {
 }
 
 func NewEmailDB(path string) (*EmailDB, error) {
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}

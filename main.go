@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/mail"
@@ -73,14 +74,14 @@ func subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	oplog = oplog.With().Str("email", email).Logger()
-    _, err := mail.ParseAddress(email)
-    if err != nil {
-        oplog.Error().Err(err).Msg("Invalid email address")
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(http.StatusBadRequest)
-        fmt.Fprintf(w, "{\"error\": \"Invalid email address\"}")
-        return
-    }
+	_, err := mail.ParseAddress(email)
+	if err != nil {
+		oplog.Error().Err(err).Msg("Invalid email address")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "{\"error\": \"Invalid email address\"}")
+		return
+	}
 
 	oplog.Info().Msg("Saving subscriber to the file")
 
@@ -121,39 +122,40 @@ func sendEmails(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "{\"error\": \"Failed to fetch exchange rate\"}")
 		return
 	}
-    oplog.Info().Float64("rate", rate).Msg("Exchange rate fetched successfully")
+	oplog.Info().Float64("rate", rate).Msg("Exchange rate fetched successfully")
 
 	oplog.Info().Msg("Sending email...")
 	body := "Bitcoin rate is " + strconv.FormatFloat(rate, 'f', -1, 64) + " USD"
 	err = mailer.Send(r.Context(), emails.Emails(), "Bitcoin rate", body)
-    if err != nil {
-        oplog.Error().Err(err).Msg("Failed to send email")
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(http.StatusInternalServerError)
-        fmt.Fprintf(w, "{\"error\": \"Failed to send email\"}")
-        return
-    }
-    oplog.Info().Msg("Sent " + strconv.Itoa(len(emails.Emails())) + " emails")
+	if err != nil {
+		oplog.Error().Err(err).Msg("Failed to send email")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "{\"error\": \"Failed to send email\"}")
+		return
+	}
+	oplog.Info().Msg("Sent " + strconv.Itoa(len(emails.Emails())) + " emails")
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 }
 
 type EmailConfig struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	From     string `json:"from"`
+	Username string
+	Password string
+	From     string
 	Smtp     struct {
-		Host string `json:"host"`
-		Port int    `json:"port"`
-		SSL  bool   `json:"ssl"`
-	} `json:"smtp"`
+		Host string
+		Port int
+		SSL  bool
+	}
 }
 
 type AppConfig struct {
-	Email          EmailConfig `json:"email"`
-	Bind           string      `json:"bind"`
-	EmailsFilePath string      `json:"emailsFilePath"`
+	Email          EmailConfig
+	Bind           string
+	EmailsFilePath string
+	UseJSONLogs    bool
 }
 
 type BootstrapOpts struct {
@@ -168,7 +170,7 @@ func Bootstrap(config BootstrapOpts) chi.Router {
 	router.Use(httplog.RequestLogger(config.Logger))
 	router.Use(attachValue(FetcherCtxKey, config.Fetcher))
 	router.Use(attachValue(EmailDBCtxKey, config.Emails))
-    router.Use(attachValue(MailerCtxKey, config.Mailer))
+	router.Use(attachValue(MailerCtxKey, config.Mailer))
 
 	router.Get("/rate", rate)
 	router.Post("/subscribe", subscribe)
@@ -187,46 +189,44 @@ func attachValue(key interface{}, value interface{}) func(next http.Handler) htt
 }
 
 func main() {
-	logger := httplog.NewLogger("rates-emailer", httplog.Options{
-		// JSON: true,
-	})
-
-    mode := os.Getenv("APP_MODE")
-    if mode == "" {
-        mode = "dev"
-    }
-
-    // Load config in order:
-    // - config.*
-    // - config.(dev|prod).*
-    // - config.local.*
-    // - Environment variables
-    // * refers to (json|toml|yaml|yml)
-
-    viper.SetConfigName("config")
-    viper.AddConfigPath("./conf")
-    viper.ReadInConfig()
-
-    viper.SetConfigName("config." + mode)
-    viper.MergeInConfig()
-
-    viper.SetConfigName("config.local")
-    viper.MergeInConfig()
-
-    viper.AutomaticEnv()
-    viper.BindEnv("email.username", "EMAIL_USERNAME")
-    viper.BindEnv("email.password", "EMAIL_PASSWORD")
-    viper.BindEnv("email.from", "EMAIL_FROM")
-    viper.BindEnv("email.smtp.host", "EMAIL_SMTP_HOST")
-    viper.MergeInConfig()
-
-	var config *AppConfig
-    err := viper.Unmarshal(&config)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to parse config file")
+	mode := os.Getenv("APP_MODE")
+	if mode == "" {
+		mode = "dev"
 	}
 
-    logger.Info().Msgf("Read config file: %+v", config)
+	// Load config in order:
+	// - config.*
+	// - config.(dev|prod).*
+	// - config.local.*
+	// - Environment variables
+	// * refers to (json|toml|yaml|yml)
+
+	viper.SetConfigName("config")
+	viper.AddConfigPath("./conf")
+	viper.ReadInConfig()
+
+	viper.SetConfigName("config." + mode)
+	viper.MergeInConfig()
+
+	viper.SetConfigName("config.local")
+	viper.MergeInConfig()
+
+	viper.AutomaticEnv()
+	viper.BindEnv("email.username", "EMAIL_USERNAME")
+	viper.BindEnv("email.password", "EMAIL_PASSWORD")
+	viper.BindEnv("email.from", "EMAIL_FROM")
+	viper.BindEnv("email.smtp.host", "EMAIL_SMTP_HOST")
+	viper.MergeInConfig()
+
+	var config *AppConfig
+	err := viper.Unmarshal(&config)
+	if err != nil {
+        log.Fatalf("Failed to parse config file: %s", err)
+	}
+
+	logger := httplog.NewLogger("rates-emailer", httplog.Options{
+		JSON: config.UseJSONLogs,
+	})
 
 	logger.Info().Msg("Reading emails from " + config.EmailsFilePath)
 	emails, err := NewEmailDB(config.EmailsFilePath)
@@ -240,16 +240,16 @@ func main() {
 	}
 	logger.Info().Msg("Listening on " + config.Bind)
 
-    mailer, err := NewSmtpMailer(&config.Email)
-    if err != nil {
-        logger.Fatal().Err(err).Msg("Failed to create mailer")
-    }
+	mailer, err := NewSmtpMailer(&config.Email)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create mailer")
+	}
 
 	router := Bootstrap(BootstrapOpts{
 		Emails:  emails,
 		Logger:  logger,
 		Fetcher: GeckoAPI{},
-        Mailer:  mailer,
+		Mailer:  mailer,
 	})
 
 	logger.Fatal().Err(http.Serve(listener, router))
